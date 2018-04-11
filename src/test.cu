@@ -47,8 +47,8 @@ int main()
 
     for (size_t i = 0; i < length; i++)
     {
-        a[i] = 1.1;
-        b[i] = 2.2;
+        a[i] = 1.5;
+        b[i] = 2.5;
     }
     // prepare data on GPU
     float * gpu_a;
