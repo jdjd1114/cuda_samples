@@ -8,7 +8,7 @@
 using namespace std;
 const int THREADS_NUM = 1024;
 
-__global__ static void sumOfArray(float * a, float * b, float * c, int array_size)
+__global__ static void dot_product(float * a, float * b, float * c, int array_size)
 {
     int tid = threadIdx.x + blockDim.x * blockIdx.x;
      
@@ -27,14 +27,17 @@ __global__ static void sumOfArray(float * a, float * b, float * c, int array_siz
             if (tid + offset < length)
             {
                 c_tmp[tid] = c_tmp[tid] + c_tmp[tid + offset];
+                //__syncthreads();
             }
 
             length = (length - 1)/2 + 1;
             offset = (offset - 1)/2 + 1;
-           __syncthreads(); 
+            __syncthreads(); 
         }
 
         c[0] = c_tmp[0];
+
+//        c[tid] = a[tid] + b[tid];
     }
 }
 
@@ -50,20 +53,28 @@ int main()
         a[i] = 1.5;
         b[i] = 2.5;
     }
+
+    cudaSetDevice(1);
+
+    // Create CUDA event
+    cudaEvent_t start, stop;
+    checkCudaErrors(cudaEventCreate(&start));
+    checkCudaErrors(cudaEventCreate(&stop));
+    checkCudaErrors(cudaEventRecord(start, 0));
     // prepare data on GPU
     float * gpu_a;
     float * gpu_b;
     float * gpu_c;
     checkCudaErrors(cudaMalloc((void **)&gpu_a, sizeof(float) * length));
     checkCudaErrors(cudaMalloc((void **)&gpu_b, sizeof(float) * length));
-    checkCudaErrors(cudaMalloc((void **)&gpu_c, sizeof(float) ));
+    checkCudaErrors(cudaMalloc((void **)&gpu_c, sizeof(float) * length));
     checkCudaErrors(cudaMemcpy(gpu_a, a, sizeof(float) * length, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(gpu_b, b, sizeof(float) * length, cudaMemcpyHostToDevice));
 
     // kernel function
     size_t blockNum = 1;
     size_t threadsNum = THREADS_NUM;
-    sumOfArray<<<blockNum, threadsNum, sizeof(float) * length>>>(gpu_a, gpu_b, gpu_c, length);
+    dot_product<<<blockNum, threadsNum, sizeof(float) * length>>>(gpu_a, gpu_b, gpu_c, length);
     
     // Copy data back
     cudaMemcpy(&c, gpu_c, sizeof(float), cudaMemcpyDeviceToHost);
@@ -74,6 +85,14 @@ int main()
     checkCudaErrors(cudaFree(gpu_a));
     checkCudaErrors(cudaFree(gpu_b));
     checkCudaErrors(cudaFree(gpu_c));
+    delete [] a;
+    delete [] b;
+
+    checkCudaErrors(cudaEventRecord(stop, 0));
+    checkCudaErrors(cudaEventSynchronize( stop ));
+    float elapsedTime;
+    checkCudaErrors(cudaEventElapsedTime(&elapsedTime, start, stop));
+    printf( "Time to generate dot product: %.3f ms\n", elapsedTime );
 
     return 0;
 }
